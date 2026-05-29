@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   if (!phone) return res.status(400).json({ error: 'phone required' });
 
   const digits = phone.replace(/\D/g, '').slice(-10);
-  const url = `https://api.numlookupapi.com/v1/info/+1${digits}?apikey=${process.env.NUMLOOKUP_API_KEY}`;
+  const url = `https://api.numlookupapi.com/v1/validate/+1${digits}?apikey=${process.env.NUMLOOKUP_API_KEY}`;
   
   try {
     const r = await fetch(url);
