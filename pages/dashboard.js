@@ -20,6 +20,13 @@ function Badge({ status }) {
   );
 }
 
+function formatPhone(digits) {
+  if (!digits) return '';
+  const d = digits.replace(/\D/g, '').slice(-10);
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  return digits;
+}
+
 function ContactSearchPanel({ record, users, onResolved }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -28,14 +35,26 @@ function ContactSearchPanel({ record, users, onResolved }) {
   const [submitting, setSubmitting] = useState(false);
   const [localTasks, setLocalTasks] = useState(record.tasks || []);
 
-  async function search() {
-    if (!query.trim()) return;
+  // Auto-search by phone number on mount
+  useEffect(() => {
+    if (record.parsed.contactPhone) {
+      setQuery(record.parsed.contactPhone);
+      searchByQuery(record.parsed.contactPhone);
+    }
+  }, []);
+
+  async function searchByQuery(q) {
+    if (!q?.trim()) return;
     setSearching(true);
     try {
-      const res = await fetch(`/api/ghl/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/ghl/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       setResults(data.contacts || []);
     } finally { setSearching(false); }
+  }
+
+  async function search() {
+    await searchByQuery(query);
   }
 
   async function handleLog(contactId, createNew = false) {
@@ -71,8 +90,9 @@ function ContactSearchPanel({ record, users, onResolved }) {
   return (
     <div style={{ marginTop: 16, padding: 16, background: '#fef2f2', borderRadius: 8, border: '1px solid #fecaca' }}>
       <p style={{ color: '#dc2626', fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
-        ⚠ No matching GHL contact found for <strong>{record.parsed.contactName}</strong>
-        {record.parsed.contactPhone && ` · ${record.parsed.contactPhone}`}
+        ⚠ No matching GHL contact found for{' '}
+        <strong>{record.parsed.contactName || formatPhone(record.parsed.contactPhone) || 'Unknown Contact'}</strong>
+        {record.parsed.contactPhone && ` · ${formatPhone(record.parsed.contactPhone)}`}
       </p>
 
       {/* Task assignment for unmatched */}
@@ -229,7 +249,7 @@ function CallNoteCard({ record, users, onRefresh }) {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ color: '#111827', fontWeight: 700, fontSize: 15 }}>{p.contactName || 'Unknown Contact'}</span>
-            {p.contactPhone && <span style={{ color: '#6b7280', fontSize: 13 }}>({p.contactPhone.slice(0,3)}) {p.contactPhone.slice(3,6)}-{p.contactPhone.slice(6)}</span>}
+            {p.contactPhone && <span style={{ color: '#6b7280', fontSize: 13 }}>{formatPhone(p.contactPhone)}</span>}
             <Badge status={record.matchStatus} />
             <Badge status={localStatus} />
           </div>
@@ -244,7 +264,7 @@ function CallNoteCard({ record, users, onRefresh }) {
 
       {expanded && (
         <div style={{ padding: '0 20px 20px', borderTop: '1px solid #f3f4f6' }}>
-          {p.summary && (
+          {p.summary && p.summary.length > 5 && (
             <div style={{ background: '#f9fafb', borderRadius: 8, padding: 14, marginTop: 14, marginBottom: 12, border: '1px solid #e5e7eb' }}>
               <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Summary</p>
               <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{p.summary}</p>
