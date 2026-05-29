@@ -23,24 +23,22 @@ export default async function handler(req, res) {
       const phone = record.parsed?.contactPhone;
       const name = record.parsed?.contactName;
 
-      let ghlPossibleMatches = record.ghlPossibleMatches || [];
-      let contactSuggestions = record.contactSuggestions || [];
-      let cnamResult = record.cnamResult || null;
+      let ghlPossibleMatches = [];
+      let contactSuggestions = [];
+      let cnamResult = null;
 
-      // Search GHL by phone
-      if (phone && ghlPossibleMatches.length === 0) {
+      // Always re-run all lookups for unmatched records
+      if (phone) {
         const { possible } = await searchContactByPhone(phone);
-        if (possible.length > 0) ghlPossibleMatches = possible;
+        if (possible.length > 0) ghlPossibleMatches = [...possible];
       }
 
-      // Search GHL by name
       if (name && ghlPossibleMatches.length === 0) {
         const nameMatches = await searchContactsByName(name);
-        if (nameMatches.length > 0) ghlPossibleMatches = nameMatches;
+        if (nameMatches.length > 0) ghlPossibleMatches = [...nameMatches];
       }
 
-      // Search Outlook and RingCentral
-      if (phone && contactSuggestions.length === 0) {
+      if (phone) {
         const [outlookMatch, rcMatch] = await Promise.all([
           searchOutlookContactByPhone(phone),
           searchRCContactByPhone(phone),
@@ -51,27 +49,22 @@ export default async function handler(req, res) {
         }
       }
 
-      // CNAM lookup if no name found yet
-      if (phone && !cnamResult && !name) {
+      // CNAM lookup for all unmatched records
+      if (phone) {
         cnamResult = await lookupCNAM(phone);
-        if (cnamResult?.name) {
-          // Also try GHL search with CNAM name
+        if (cnamResult?.name && ghlPossibleMatches.length === 0) {
           const cnamNameMatches = await searchContactsByName(cnamResult.name);
-          const newMatches = cnamNameMatches.filter(c => !ghlPossibleMatches.find(p => p.id === c.id));
-          ghlPossibleMatches = [...ghlPossibleMatches, ...newMatches];
+          if (cnamNameMatches.length > 0) ghlPossibleMatches = [...cnamNameMatches];
         }
       }
 
-      const hasNewData = ghlPossibleMatches.length > 0 || contactSuggestions.length > 0 || cnamResult;
-
-      if (hasNewData) {
-        await updateRecord(record.emailId, {
-          ghlPossibleMatches,
-          contactSuggestions,
-          cnamResult,
-        });
-        enrichedCount++;
-      }
+      // Always update the record with fresh lookup results
+      await updateRecord(record.emailId, {
+        ghlPossibleMatches,
+        contactSuggestions,
+        cnamResult,
+      });
+      enrichedCount++;
     }
 
     return res.status(200).json({
