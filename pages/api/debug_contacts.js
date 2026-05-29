@@ -1,6 +1,4 @@
-// pages/api/debug-contacts.js
-import { getAccessToken } from '../../lib/msAuth';
-
+// pages/api/debug_contacts.js
 const GHL_BASE = 'https://services.leadconnectorhq.com';
 const LOCATION_ID = process.env.GHL_LOCATION_ID || '7ZVXNPvaTTHCO2wcpdnk';
 
@@ -21,13 +19,12 @@ export default async function handler(req, res) {
 
   const results = {};
 
-  // Try different GHL endpoints
   const tests = [
+    { label: 'lookup_by_phone', url: `${GHL_BASE}/contacts/lookup?locationId=${LOCATION_ID}&phone=${encodeURIComponent('+1'+digits)}` },
+    { label: 'lookup_no_plus', url: `${GHL_BASE}/contacts/lookup?locationId=${LOCATION_ID}&phone=${encodeURIComponent(digits)}` },
+    { label: 'contacts_phone_param', url: `${GHL_BASE}/contacts/?locationId=${LOCATION_ID}&phone=${encodeURIComponent('+1'+digits)}&limit=20` },
     { label: 'contacts_list_digits', url: `${GHL_BASE}/contacts/?locationId=${LOCATION_ID}&query=${encodeURIComponent(digits)}&limit=20` },
     { label: 'contacts_list_formatted', url: `${GHL_BASE}/contacts/?locationId=${LOCATION_ID}&query=${encodeURIComponent(formatted)}&limit=20` },
-    { label: 'contacts_search_digits', url: `${GHL_BASE}/contacts/search?locationId=${LOCATION_ID}&query=${encodeURIComponent(digits)}&limit=20` },
-    { label: 'contacts_search_formatted', url: `${GHL_BASE}/contacts/search?locationId=${LOCATION_ID}&query=${encodeURIComponent(formatted)}&limit=20` },
-    { label: 'contacts_search_plus1', url: `${GHL_BASE}/contacts/search?locationId=${LOCATION_ID}&query=${encodeURIComponent('+1'+digits)}&limit=20` },
   ];
 
   for (const test of tests) {
@@ -43,6 +40,7 @@ export default async function handler(req, res) {
           phone: c.phone,
           additionalPhones: c.additionalPhones,
         })),
+        raw: Object.keys(d),
       };
     } catch (e) {
       results[test.label] = { error: e.message };
