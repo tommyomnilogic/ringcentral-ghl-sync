@@ -343,14 +343,14 @@ function CallNoteCard({ record, users, onRefresh }) {
           {p.summary && p.summary.length > 5 && (
             <div style={{ background: '#f9fafb', borderRadius: 8, padding: 14, marginTop: 14, marginBottom: 12, border: '1px solid #e5e7eb' }}>
               <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Summary</p>
-              <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{p.summary}</p>
+              <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{p.summary}</p>
             </div>
           )}
 
           {p.recap && (
             <div style={{ background: '#f9fafb', borderRadius: 8, padding: 14, marginBottom: 12, border: '1px solid #e5e7eb' }}>
               <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.08em' }}>Recap</p>
-              <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{p.recap}</p>
+              <p style={{ color: '#374151', fontSize: 13, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{p.recap}</p>
             </div>
           )}
 
