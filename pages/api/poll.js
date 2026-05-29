@@ -6,15 +6,15 @@ import { parseRingCentralEmail } from '../../lib/parseEmail';
 import { searchContactByPhone, addNoteToContact, checkNoteAlreadyLogged } from '../../lib/ghl';
 import { addRecord, getProcessedIds, updateRecord } from '../../lib/store';
 import { moveEmailToProcessed } from '../../lib/msEmail';
+import { searchRCContactByPhone } from '../../lib/rcContacts';
+import { searchOutlookContactByPhone } from '../../lib/outlookContacts';
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
 const CALL_NOTES_FOLDER_ID = 'AAMkAGZhMzkyMDQzLThiYTQtNDI4OC1hODc2LTUzMDkxM2I4ODM4MAAuAAAAAABDZqlrUdd5S7QyDmWt04GxAQBNHk7ZXZzoR7XLxpjZ8cOWAAAREdxNAAA=';
 
 async function getEmails(accessToken) {
   const url = `${GRAPH_BASE}/me/mailFolders/${CALL_NOTES_FOLDER_ID}/messages?$top=20&$orderby=receivedDateTime desc&$select=id,subject,body,receivedDateTime,from`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`Failed to fetch emails: ${err}`);
@@ -47,10 +47,24 @@ export default async function handler(req, res) {
       // Try to match contact in GHL by phone
       let ghlContact = null;
       let matchStatus = 'unmatched';
+      let contactSuggestions = [];
 
       if (parsed.contactPhone) {
         ghlContact = await searchContactByPhone(parsed.contactPhone);
         if (ghlContact) matchStatus = 'matched';
+      }
+
+      // For unmatched contacts, look up in Outlook and RingCentral
+      if (matchStatus === 'unmatched' && parsed.contactPhone) {
+        const [outlookMatch, rcMatch] = await Promise.all([
+          searchOutlookContactByPhone(parsed.contactPhone),
+          searchRCContactByPhone(parsed.contactPhone),
+        ]);
+
+        if (outlookMatch) contactSuggestions.push(outlookMatch);
+        if (rcMatch && (!outlookMatch || rcMatch.name !== outlookMatch.name)) {
+          contactSuggestions.push(rcMatch);
+        }
       }
 
       const record = {
@@ -61,6 +75,7 @@ export default async function handler(req, res) {
         ghlContact: ghlContact || null,
         matchStatus,
         logStatus: 'pending',
+        contactSuggestions, // from Outlook/RingCentral
         tasks: parsed.tasks.map((t, i) => ({
           ...t,
           id: `${email.id}-task-${i}`,
@@ -71,54 +86,32 @@ export default async function handler(req, res) {
 
       // Auto-log if matched and note hasn't been logged before
       if (matchStatus === 'matched' && ghlContact?.id) {
-        const alreadyLogged = await checkNoteAlreadyLogged(
-          ghlContact.id,
-          parsed.callDateTime
-        );
+        const alreadyLogged = await checkNoteAlreadyLogged(ghlContact.id, parsed.callDateTime);
 
         if (alreadyLogged) {
-          // Already in GHL — mark as logged and move email
           record.logStatus = 'logged';
-          record.autoLogged = false;
           record.skipReason = 'already_logged';
           addRecord(record);
-          try {
-            await moveEmailToProcessed(email.id);
-          } catch (e) {
-            console.error('Move error:', e.message);
-          }
+          try { await moveEmailToProcessed(email.id); } catch (e) { console.error('Move error:', e.message); }
         } else {
-          // Auto-log the note to GHL
           try {
             await addNoteToContact(ghlContact.id, parsed.fullNote);
             record.logStatus = 'logged';
             record.autoLogged = true;
             addRecord(record);
-            updateRecord(email.id, {
-              logStatus: 'logged',
-              ghlContactId: ghlContact.id,
-              autoLogged: true,
-            });
-
-            // Move email to processed
+            updateRecord(email.id, { logStatus: 'logged', ghlContactId: ghlContact.id, autoLogged: true });
             try {
               await moveEmailToProcessed(email.id);
               updateRecord(email.id, { emailMoved: true });
-            } catch (moveErr) {
-              console.error('Move error:', moveErr.message);
-            }
-
+            } catch (moveErr) { console.error('Move error:', moveErr.message); }
             autoLoggedCount++;
-            console.log(`Auto-logged: ${parsed.contactName || parsed.contactPhone} → ${ghlContact.firstName} ${ghlContact.lastName}`);
           } catch (logErr) {
-            // If auto-log fails, fall through to dashboard
             console.error('Auto-log error:', logErr.message);
             record.logStatus = 'pending';
             addRecord(record);
           }
         }
       } else {
-        // Unmatched — goes to dashboard for manual review
         addRecord(record);
       }
 

@@ -97,6 +97,39 @@ function ContactSearchPanel({ record, users, onResolved }) {
 
       {/* Task assignment shown after contact is selected */}
 
+      {/* Suggestions from Outlook/RingCentral */}
+      {record.contactSuggestions && record.contactSuggestions.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Found in other sources
+          </p>
+          {record.contactSuggestions.map((s, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+              background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 6,
+            }}>
+              <div style={{
+                padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                background: s.source === 'Outlook' ? '#dbeafe' : '#fef3c7',
+                color: s.source === 'Outlook' ? '#1d4ed8' : '#d97706',
+                border: `1px solid ${s.source === 'Outlook' ? '#93c5fd' : '#fcd34d'}`,
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>{s.source}</div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{s.name}</span>
+                {s.email && <span style={{ color: '#6b7280', fontSize: 12, marginLeft: 8 }}>{s.email}</span>}
+              </div>
+              <button
+                onClick={() => setQuery(s.name)}
+                style={{ padding: '4px 10px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#374151' }}
+              >
+                Search GHL →
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
           value={query}
