@@ -433,6 +433,7 @@ export default function Dashboard() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
+  const [enriching, setEnriching] = useState(false);
   const [lastPoll, setLastPoll] = useState(null);
   const [filter, setFilter] = useState('all');
 
@@ -456,6 +457,14 @@ export default function Dashboard() {
     }
     init();
   }, []);
+
+  async function triggerEnrich() {
+    setEnriching(true);
+    try {
+      await fetch('/api/enrich', { method: 'POST' });
+      await fetchRecords();
+    } finally { setEnriching(false); }
+  }
 
   async function triggerPoll() {
     setPolling(true);
@@ -502,6 +511,9 @@ export default function Dashboard() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {lastPoll && <span style={{ color: '#9ca3af', fontSize: 12 }}>Last poll: {lastPoll.newRecords} new · {lastPoll.emailsChecked} checked</span>}
+            <button onClick={triggerEnrich} disabled={enriching} style={{ padding: '8px 18px', background: enriching ? '#e5e7eb' : '#f59e0b', color: enriching ? '#9ca3af' : '#fff', border: 'none', borderRadius: 6, cursor: enriching ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, marginRight: 8 }}>
+              {enriching ? '⟳ Enriching...' : '🔍 Find Matches'}
+            </button>
             <button onClick={triggerPoll} disabled={polling} style={{ padding: '8px 18px', background: polling ? '#e5e7eb' : '#2563eb', color: polling ? '#9ca3af' : '#fff', border: 'none', borderRadius: 6, cursor: polling ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13 }}>
               {polling ? '⟳ Polling...' : '⟳ Poll Now'}
             </button>
