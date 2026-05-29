@@ -1,8 +1,9 @@
 // pages/api/ghl/log.js
-// Logs a call note and tasks to a GHL contact
+// Logs a call note and tasks to a GHL contact, then moves email to processed folder
 
 import { addNoteToContact, createTask, createContact } from '../../../lib/ghl';
 import { updateRecord, getRecord } from '../../../lib/store';
+import { moveEmailToProcessed } from '../../../lib/msEmail';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -15,7 +16,7 @@ export default async function handler(req, res) {
     const record = getRecord(emailId);
     if (!record) return res.status(404).json({ error: 'Record not found' });
 
-    // Handle ignore
+    // Handle ignore — just mark it, don't move the email
     if (action === 'ignore') {
       updateRecord(emailId, { logStatus: 'ignored' });
       return res.status(200).json({ success: true, action: 'ignored' });
@@ -40,7 +41,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No contact ID provided' });
     }
 
-    // Log the full note
+    // Log the full note to GHL
     await addNoteToContact(resolvedContactId, record.parsed.fullNote);
 
     // Create tasks that have been assigned
@@ -48,7 +49,6 @@ export default async function handler(req, res) {
     if (tasks && tasks.length > 0) {
       for (const task of tasks) {
         if (task.ghlAssignee === 'ignore' || !task.ghlAssignee) continue;
-
         try {
           await createTask({
             contactId: resolvedContactId,
@@ -63,10 +63,22 @@ export default async function handler(req, res) {
       }
     }
 
+    // Move email to "Call notes - processed" folder to prevent re-processing
+    let emailMoved = false;
+    try {
+      await moveEmailToProcessed(emailId);
+      emailMoved = true;
+      console.log(`Moved email ${emailId} to processed folder`);
+    } catch (moveErr) {
+      // Non-fatal — log the error but don't fail the whole operation
+      console.error('Email move error:', moveErr.message);
+    }
+
     // Update record status
     updateRecord(emailId, {
       logStatus: 'logged',
       ghlContactId: resolvedContactId,
+      emailMoved,
       tasks: record.tasks.map(t => {
         const result = taskResults.find(r => r.id === t.id);
         return result ? { ...t, taskStatus: result.status } : t;
@@ -77,6 +89,7 @@ export default async function handler(req, res) {
       success: true,
       contactId: resolvedContactId,
       tasksCreated: taskResults.filter(t => t.status === 'created').length,
+      emailMoved,
     });
   } catch (err) {
     console.error('Log error:', err);
