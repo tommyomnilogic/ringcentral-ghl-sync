@@ -1,7 +1,7 @@
 // pages/api/poll.js
 import { getAccessToken } from '../../lib/msAuth';
 import { parseRingCentralEmail } from '../../lib/parseEmail';
-import { searchContactByPhone, addNoteToContact, checkNoteAlreadyLogged } from '../../lib/ghl';
+import { searchContactByPhone, searchContactsByName, addNoteToContact, checkNoteAlreadyLogged } from '../../lib/ghl';
 import { addRecord, getProcessedIds, updateRecord } from '../../lib/store';
 import { moveEmailToProcessed } from '../../lib/msEmail';
 import { searchRCContactByPhone } from '../../lib/rcContacts';
@@ -41,10 +41,25 @@ export default async function handler(req, res) {
       let ghlContact = null;
       let matchStatus = 'unmatched';
       let contactSuggestions = [];
+      let ghlPossibleMatches = [];
 
       if (parsed.contactPhone) {
-        ghlContact = await searchContactByPhone(parsed.contactPhone);
-        if (ghlContact) matchStatus = 'matched';
+        const { exact, possible } = await searchContactByPhone(parsed.contactPhone);
+        if (exact) {
+          ghlContact = exact;
+          matchStatus = 'matched';
+          ghlPossibleMatches = possible;
+        } else if (possible.length > 0) {
+          // Phone matches but let user confirm
+          ghlPossibleMatches = possible;
+          matchStatus = 'unmatched';
+        }
+      }
+
+      // Also search by name if we have one and still unmatched
+      if (matchStatus === 'unmatched' && parsed.contactName) {
+        const nameMatches = await searchContactsByName(parsed.contactName);
+        ghlPossibleMatches = [...ghlPossibleMatches, ...nameMatches.filter(c => !ghlPossibleMatches.find(p => p.id === c.id))];
       }
 
       // For unmatched, search Outlook and RingCentral
@@ -68,6 +83,7 @@ export default async function handler(req, res) {
         matchStatus,
         logStatus: 'pending',
         contactSuggestions,
+        ghlPossibleMatches,
         tasks: parsed.tasks.map((t, i) => ({
           ...t,
           id: `${email.id}-task-${i}`,

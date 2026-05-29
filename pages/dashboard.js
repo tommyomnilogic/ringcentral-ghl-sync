@@ -97,6 +97,32 @@ function ContactSearchPanel({ record, users, onResolved }) {
 
       {/* Task assignment shown after contact is selected */}
 
+      {/* GHL possible matches by phone or name */}
+      {record.ghlPossibleMatches && record.ghlPossibleMatches.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            ⚠ Possible GHL matches — select the correct one
+          </p>
+          {record.ghlPossibleMatches.map((c, i) => (
+            <div key={i} onClick={() => setSelected(c)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+              background: selected?.id === c.id ? '#eff6ff' : '#fff',
+              border: `1px solid ${selected?.id === c.id ? '#2563eb' : '#fcd34d'}`,
+              borderRadius: 8, marginBottom: 6, cursor: 'pointer',
+            }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                {(c.firstName?.[0] || '?').toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{c.firstName} {c.lastName}</div>
+                <div style={{ color: '#6b7280', fontSize: 12 }}>{c.phone} {c.email ? `· ${c.email}` : ''}</div>
+              </div>
+              {selected?.id === c.id && <span style={{ color: '#16a34a', fontWeight: 700 }}>✓</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Suggestions from Outlook/RingCentral */}
       {record.contactSuggestions && record.contactSuggestions.length > 0 && (
         <div style={{ marginBottom: 14 }}>
