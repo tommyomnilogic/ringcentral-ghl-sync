@@ -35,11 +35,12 @@ function ContactSearchPanel({ record, users, onResolved }) {
   const [submitting, setSubmitting] = useState(false);
   const [localTasks, setLocalTasks] = useState(record.tasks || []);
 
-  // Auto-search by phone number on mount
+  // Auto-search by phone number on mount using formatted number
   useEffect(() => {
     if (record.parsed.contactPhone) {
-      setQuery(record.parsed.contactPhone);
-      searchByQuery(record.parsed.contactPhone);
+      const formatted = formatPhone(record.parsed.contactPhone);
+      setQuery(formatted);
+      searchByQuery(formatted);
     }
   }, []);
 
