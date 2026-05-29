@@ -356,7 +356,11 @@ function CallNoteCard({ record, users, onRefresh }) {
 
           {isDone && (
             <p style={{ color: '#9ca3af', fontSize: 13, fontStyle: 'italic', marginTop: 12 }}>
-              {localStatus === 'logged' ? '✓ Successfully logged to GoHighLevel' : '✗ Ignored'}
+              {localStatus === 'logged'
+                ? record.autoLogged
+                  ? '⚡ Auto-logged to GoHighLevel'
+                  : '✓ Successfully logged to GoHighLevel'
+                : '✗ Ignored'}
             </p>
           )}
         </div>
