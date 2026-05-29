@@ -153,6 +153,10 @@ function TaskRow({ task, users, contactId, emailId, onTaskCreated }) {
   const isDone = task.taskStatus === 'created' || task.taskStatus === 'ignored';
 
   async function assign(userId) {
+    if (!contactId) {
+      alert('No GHL contact linked yet — log the note first or select a contact.');
+      return;
+    }
     setAssigning(userId);
     try {
       const res = await fetch('/api/ghl/task', {
@@ -165,7 +169,14 @@ function TaskRow({ task, users, contactId, emailId, onTaskCreated }) {
           contactId,
         }),
       });
-      if (res.ok) onTaskCreated(task.id, userId, 'created');
+      if (res.ok) {
+        onTaskCreated(task.id, userId, 'created');
+      } else {
+        const err = await res.json();
+        alert(`Task failed: ${err.error}`);
+      }
+    } catch(e) {
+      alert(`Task error: ${e.message}`);
     } finally { setAssigning(null); }
   }
 
@@ -221,7 +232,7 @@ function CallNoteCard({ record, users, onRefresh }) {
   const [submitting, setSubmitting] = useState(false);
   const [localStatus, setLocalStatus] = useState(record.logStatus);
 
-  const contactId = record.ghlContact?.id;
+  const contactId = record.ghlContact?.id || record.ghlContactId;
 
   function handleTaskCreated(taskId, assigneeId, status) {
     setTasks(prev => prev.map(t =>
@@ -278,7 +289,9 @@ function CallNoteCard({ record, users, onRefresh }) {
 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ color: '#111827', fontWeight: 700, fontSize: 15 }}>{p.contactName || 'Unknown Contact'}</span>
+            <span style={{ color: '#111827', fontWeight: 700, fontSize: 15 }}>
+              {record.ghlContact ? `${record.ghlContact.firstName || ''} ${record.ghlContact.lastName || ''}`.trim() : (p.contactName || 'Unknown Contact')}
+            </span>
             {p.contactPhone && <span style={{ color: '#6b7280', fontSize: 13 }}>{formatPhone(p.contactPhone)}</span>}
             <Badge status={record.matchStatus} />
             <Badge status={localStatus} />
