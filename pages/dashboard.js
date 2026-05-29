@@ -70,7 +70,6 @@ function ContactSearchPanel({ record, users, onResolved }) {
           createNew,
           contactName: record.parsed.contactName,
           contactPhone: record.parsed.contactPhone,
-          tasks: localTasks.map(t => ({ id: t.id, description: t.description, ghlAssignee: t.ghlAssignee || 'ignore' })),
         }),
       });
       if (res.ok) onResolved(record.emailId, 'logged');
@@ -96,26 +95,7 @@ function ContactSearchPanel({ record, users, onResolved }) {
         {record.parsed.contactPhone && ` · ${formatPhone(record.parsed.contactPhone)}`}
       </p>
 
-      {/* Task assignment for unmatched */}
-      {localTasks.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assign Tasks</p>
-          {localTasks.map(task => (
-            <div key={task.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
-              <p style={{ flex: 1, fontSize: 12, color: '#374151', margin: 0, lineHeight: 1.5 }}>{task.description}</p>
-              <select
-                value={task.ghlAssignee || ''}
-                onChange={e => setLocalTasks(prev => prev.map(t => t.id === task.id ? { ...t, ghlAssignee: e.target.value } : t))}
-                style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12, color: '#374151', background: '#fff', flexShrink: 0, width: 160 }}
-              >
-                <option value="">— Assign to —</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-                <option value="ignore">🚫 Ignore</option>
-              </select>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Task assignment shown after contact is selected */}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
@@ -168,23 +148,69 @@ function ContactSearchPanel({ record, users, onResolved }) {
   );
 }
 
-function TaskRow({ task, users, onChange }) {
+function TaskRow({ task, users, contactId, emailId, onTaskCreated }) {
+  const [assigning, setAssigning] = useState(null);
+  const isDone = task.taskStatus === 'created' || task.taskStatus === 'ignored';
+
+  async function assign(userId) {
+    setAssigning(userId);
+    try {
+      const res = await fetch('/api/ghl/task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emailId,
+          taskId: task.id,
+          assignedTo: userId,
+          contactId,
+        }),
+      });
+      if (res.ok) onTaskCreated(task.id, userId, 'created');
+    } finally { setAssigning(null); }
+  }
+
+  function ignore() {
+    onTaskCreated(task.id, 'ignore', 'ignored');
+  }
+
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
-      <div style={{ flex: 1 }}>
-        <p style={{ color: '#374151', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{task.description}</p>
-        {task.assigneeName && <span style={{ color: '#9ca3af', fontSize: 11 }}>Mentioned: {task.assigneeName}</span>}
+    <div style={{ padding: '12px 0', borderBottom: '1px solid #f3f4f6' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: isDone ? 0 : 10 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ color: '#374151', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{task.description}</p>
+          {task.assigneeName && <span style={{ color: '#9ca3af', fontSize: 11 }}>Mentioned: {task.assigneeName}</span>}
+        </div>
+        <Badge status={task.taskStatus || 'pending'} />
       </div>
-      <select
-        value={task.ghlAssignee || ''}
-        onChange={e => onChange(task.id, e.target.value)}
-        style={{ padding: '6px 10px', background: '#fff', border: '1px solid #d1d5db', borderRadius: 6, color: '#374151', fontSize: 12, flexShrink: 0, width: 180 }}
-      >
-        <option value="">— Assign to —</option>
-        {users.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
-        <option value="ignore">🚫 Ignore task</option>
-      </select>
-      <Badge status={task.taskStatus || 'pending'} />
+      {!isDone && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {users.map(u => (
+            <button
+              key={u.id}
+              onClick={() => assign(u.id)}
+              disabled={!!assigning}
+              style={{
+                padding: '5px 12px', background: assigning === u.id ? '#dbeafe' : '#eff6ff',
+                color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: 20,
+                cursor: assigning ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600,
+              }}
+            >
+              {assigning === u.id ? '...' : `+ Assign to ${u.firstName}`}
+            </button>
+          ))}
+          <button
+            onClick={ignore}
+            style={{ padding: '5px 12px', background: '#f9fafb', color: '#9ca3af', border: '1px solid #e5e7eb', borderRadius: 20, cursor: 'pointer', fontSize: 12 }}
+          >
+            🚫 Ignore
+          </button>
+        </div>
+      )}
+      {task.taskStatus === 'created' && (
+        <p style={{ color: '#16a34a', fontSize: 12, margin: '6px 0 0', fontWeight: 600 }}>
+          ✓ Task created in GHL
+        </p>
+      )}
     </div>
   );
 }
@@ -195,8 +221,12 @@ function CallNoteCard({ record, users, onRefresh }) {
   const [submitting, setSubmitting] = useState(false);
   const [localStatus, setLocalStatus] = useState(record.logStatus);
 
-  function handleTaskAssign(taskId, assigneeId) {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ghlAssignee: assigneeId } : t));
+  const contactId = record.ghlContact?.id;
+
+  function handleTaskCreated(taskId, assigneeId, status) {
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, ghlAssignee: assigneeId, taskStatus: status } : t
+    ));
   }
 
   async function handleLog() {
@@ -207,8 +237,7 @@ function CallNoteCard({ record, users, onRefresh }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           emailId: record.emailId,
-          contactId: record.ghlContact?.id,
-          tasks: tasks.map(t => ({ id: t.id, description: t.description, ghlAssignee: t.ghlAssignee || 'ignore' })),
+          contactId,
         }),
       });
       if (res.ok) { setLocalStatus('logged'); onRefresh(); }
@@ -279,10 +308,21 @@ function CallNoteCard({ record, users, onRefresh }) {
             </div>
           )}
 
-          {tasks.length > 0 && !isDone && record.matchStatus === 'matched' && (
+          {tasks.length > 0 && !isDone && (
             <div style={{ background: '#f9fafb', borderRadius: 8, padding: 14, marginBottom: 12, border: '1px solid #e5e7eb' }}>
-              <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>Tasks — Assign or Ignore</p>
-              {tasks.map(task => <TaskRow key={task.id} task={task} users={users} onChange={handleTaskAssign} />)}
+              <p style={{ color: '#6b7280', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.08em' }}>
+                Tasks — Assign individually before logging
+              </p>
+              {tasks.map(task => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  users={users}
+                  contactId={contactId}
+                  emailId={record.emailId}
+                  onTaskCreated={handleTaskCreated}
+                />
+              ))}
             </div>
           )}
 
