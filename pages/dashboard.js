@@ -413,7 +413,8 @@ export default function Dashboard() {
   const fetchRecords = useCallback(async () => {
     const res = await fetch('/api/records');
     const data = await res.json();
-    setRecords(data.records || []);
+    const recs = data.records;
+    setRecords(Array.isArray(recs) ? recs : []);
   }, []);
 
   useEffect(() => {
@@ -422,8 +423,9 @@ export default function Dashboard() {
       const [r, u] = await Promise.all([fetch('/api/records'), fetch('/api/ghl/users')]);
       const rd = await r.json();
       const ud = await u.json();
-      setRecords(rd.records || []);
-      setUsers(ud.users || []);
+      const recs = rd.records;
+      setRecords(Array.isArray(recs) ? recs : []);
+      setUsers(Array.isArray(ud.users) ? ud.users : []);
       setLoading(false);
     }
     init();

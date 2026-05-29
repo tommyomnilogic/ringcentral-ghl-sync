@@ -1,6 +1,4 @@
 // pages/api/poll.js
-// Polls Ashley's Outlook "Call Notes" folder for new RingCentral emails
-
 import { getAccessToken } from '../../lib/msAuth';
 import { parseRingCentralEmail } from '../../lib/parseEmail';
 import { searchContactByPhone, addNoteToContact, checkNoteAlreadyLogged } from '../../lib/ghl';
@@ -15,12 +13,8 @@ const CALL_NOTES_FOLDER_ID = 'AAMkAGZhMzkyMDQzLThiYTQtNDI4OC1hODc2LTUzMDkxM2I4OD
 async function getEmails(accessToken) {
   const url = `${GRAPH_BASE}/me/mailFolders/${CALL_NOTES_FOLDER_ID}/messages?$top=20&$orderby=receivedDateTime desc&$select=id,subject,body,receivedDateTime,from`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed to fetch emails: ${err}`);
-  }
-  const data = await res.json();
-  return data.value || [];
+  if (!res.ok) throw new Error(`Failed to fetch emails: ${await res.text()}`);
+  return (await res.json()).value || [];
 }
 
 export default async function handler(req, res) {
@@ -30,7 +24,7 @@ export default async function handler(req, res) {
 
   try {
     const accessToken = await getAccessToken();
-    const processedIds = getProcessedIds();
+    const processedIds = await getProcessedIds();
     const emails = await getEmails(accessToken);
 
     let newCount = 0;
@@ -44,7 +38,6 @@ export default async function handler(req, res) {
 
       const parsed = parseRingCentralEmail(email.body?.content || '', subject);
 
-      // Try to match contact in GHL by phone
       let ghlContact = null;
       let matchStatus = 'unmatched';
       let contactSuggestions = [];
@@ -54,13 +47,12 @@ export default async function handler(req, res) {
         if (ghlContact) matchStatus = 'matched';
       }
 
-      // For unmatched contacts, look up in Outlook and RingCentral
+      // For unmatched, search Outlook and RingCentral
       if (matchStatus === 'unmatched' && parsed.contactPhone) {
         const [outlookMatch, rcMatch] = await Promise.all([
           searchOutlookContactByPhone(parsed.contactPhone),
           searchRCContactByPhone(parsed.contactPhone),
         ]);
-
         if (outlookMatch) contactSuggestions.push(outlookMatch);
         if (rcMatch && (!outlookMatch || rcMatch.name !== outlookMatch.name)) {
           contactSuggestions.push(rcMatch);
@@ -75,7 +67,7 @@ export default async function handler(req, res) {
         ghlContact: ghlContact || null,
         matchStatus,
         logStatus: 'pending',
-        contactSuggestions, // from Outlook/RingCentral
+        contactSuggestions,
         tasks: parsed.tasks.map((t, i) => ({
           ...t,
           id: `${email.id}-task-${i}`,
@@ -84,46 +76,40 @@ export default async function handler(req, res) {
         })),
       };
 
-      // Auto-log if matched and note hasn't been logged before
       if (matchStatus === 'matched' && ghlContact?.id) {
         const alreadyLogged = await checkNoteAlreadyLogged(ghlContact.id, parsed.callDateTime);
 
         if (alreadyLogged) {
           record.logStatus = 'logged';
           record.skipReason = 'already_logged';
-          addRecord(record);
+          await addRecord(record);
           try { await moveEmailToProcessed(email.id); } catch (e) { console.error('Move error:', e.message); }
         } else {
           try {
             await addNoteToContact(ghlContact.id, parsed.fullNote);
             record.logStatus = 'logged';
             record.autoLogged = true;
-            addRecord(record);
-            updateRecord(email.id, { logStatus: 'logged', ghlContactId: ghlContact.id, autoLogged: true });
+            await addRecord(record);
+            await updateRecord(email.id, { logStatus: 'logged', ghlContactId: ghlContact.id, autoLogged: true });
             try {
               await moveEmailToProcessed(email.id);
-              updateRecord(email.id, { emailMoved: true });
+              await updateRecord(email.id, { emailMoved: true });
             } catch (moveErr) { console.error('Move error:', moveErr.message); }
             autoLoggedCount++;
           } catch (logErr) {
             console.error('Auto-log error:', logErr.message);
             record.logStatus = 'pending';
-            addRecord(record);
+            await addRecord(record);
           }
         }
       } else {
-        addRecord(record);
+        await addRecord(record);
       }
 
       newCount++;
     }
 
-    return res.status(200).json({
-      success: true,
-      emailsChecked: emails.length,
-      newRecords: newCount,
-      autoLogged: autoLoggedCount,
-    });
+    return res.status(200).json({ success: true, emailsChecked: emails.length, newRecords: newCount, autoLogged: autoLoggedCount });
   } catch (err) {
     console.error('Poll error:', err);
     return res.status(500).json({ error: err.message });
