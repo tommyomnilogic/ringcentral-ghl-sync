@@ -8,23 +8,19 @@ export default async function handler(req, res) {
     });
     const foldersData = await foldersRes.json();
     const folders = foldersData.value || [];
-    const callNotesFolder = folders.find(f =>
-      f.displayName.toLowerCase().includes('call note')
-    );
-    let emails = [];
-    if (callNotesFolder) {
-      const emailsRes = await fetch(
-        `${GRAPH_BASE}/me/mailFolders/${callNotesFolder.id}/messages?$top=10&$select=id,subject,receivedDateTime`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const emailsData = await emailsRes.json();
-      emails = emailsData.value || [];
+    const withChildren = [];
+    for (const folder of folders) {
+      const subRes = await fetch(`${GRAPH_BASE}/me/mailFolders/${folder.id}/childFolders?$top=50`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const subData = subRes.ok ? await subRes.json() : { value: [] };
+      withChildren.push({
+        name: folder.displayName,
+        count: folder.totalItemCount,
+        subfolders: (subData.value || []).map(s => ({ name: s.displayName, count: s.totalItemCount, id: s.id })),
+      });
     }
-    return res.status(200).json({
-      folders: folders.map(f => ({ name: f.displayName, count: f.totalItemCount })),
-      callNotesFolder: callNotesFolder || 'NOT FOUND',
-      emails: emails.map(e => ({ subject: e.subject, received: e.receivedDateTime })),
-    });
+    return res.status(200).json({ folders: withChildren });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
