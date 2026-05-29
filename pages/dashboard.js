@@ -123,38 +123,38 @@ function ContactSearchPanel({ record, users, onResolved }) {
         </div>
       )}
 
-      {/* CNAM caller name result */}
-      {record.cnamResult && (
+      {/* Extracted name from summary */}
+      {record.extractedName && (
+        <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fefce8', border: '1px solid #fde047', borderRadius: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#854d0e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+            💡 Name found in call notes
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{record.extractedName}</span>
+            <button
+              onClick={() => { setQuery(record.extractedName); searchByQuery(record.extractedName); }}
+              style={{ padding: '3px 10px', background: '#fef08a', border: '1px solid #fde047', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#854d0e', fontWeight: 600 }}
+            >
+              Search GHL →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CNAM name */}
+      {record.cnamResult?.name && (
         <div style={{ marginBottom: 14, padding: '10px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
             📞 CNAM Caller ID
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {record.cnamResult.name && (
-              <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{record.cnamResult.name}</span>
-            )}
-            {!record.cnamResult.name && (
-              <span style={{ color: '#6b7280', fontSize: 13, fontStyle: 'italic' }}>No name registered</span>
-            )}
-            {record.cnamResult.carrier && (
-              <span style={{ color: '#6b7280', fontSize: 12 }}>· {record.cnamResult.carrier}</span>
-            )}
-            {record.cnamResult.lineType && (
-              <span style={{ padding: '2px 8px', background: '#e0f2fe', color: '#0369a1', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>
-                {record.cnamResult.lineType}
-              </span>
-            )}
-            {record.cnamResult.location && (
-              <span style={{ color: '#9ca3af', fontSize: 12 }}>📍 {record.cnamResult.location}</span>
-            )}
-            {record.cnamResult.name && (
-              <button
-                onClick={() => { setQuery(record.cnamResult.name); searchByQuery(record.cnamResult.name); }}
-                style={{ padding: '3px 10px', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#15803d', fontWeight: 600 }}
-              >
-                Search GHL →
-              </button>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontWeight: 700, color: '#111827', fontSize: 14 }}>{record.cnamResult.name}</span>
+            <button
+              onClick={() => { setQuery(record.cnamResult.name); searchByQuery(record.cnamResult.name); }}
+              style={{ padding: '3px 10px', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, fontSize: 12, cursor: 'pointer', color: '#15803d', fontWeight: 600 }}
+            >
+              Search GHL →
+            </button>
           </div>
         </div>
       )}
