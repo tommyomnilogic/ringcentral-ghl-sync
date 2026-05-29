@@ -5,6 +5,7 @@ import { searchContactByPhone, searchContactsByName, addNoteToContact, checkNote
 import { addRecord, getProcessedIds, updateRecord } from '../../lib/store';
 import { moveEmailToProcessed } from '../../lib/msEmail';
 import { searchRCContactByPhone } from '../../lib/rcContacts';
+import { lookupCNAM } from '../../lib/cnam';
 import { searchOutlookContactByPhone } from '../../lib/outlookContacts';
 
 const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
@@ -62,6 +63,16 @@ export default async function handler(req, res) {
         ghlPossibleMatches = [...ghlPossibleMatches, ...nameMatches.filter(c => !ghlPossibleMatches.find(p => p.id === c.id))];
       }
 
+      // CNAM lookup for unmatched records without a name
+      if (matchStatus === 'unmatched' && parsed.contactPhone && !parsed.contactName) {
+        cnamResult = await lookupCNAM(parsed.contactPhone);
+        if (cnamResult?.name) {
+          const cnamMatches = await searchContactsByName(cnamResult.name).catch(() => []);
+          const newMatches = cnamMatches.filter(c => !ghlPossibleMatches.find(p => p.id === c.id));
+          ghlPossibleMatches = [...ghlPossibleMatches, ...newMatches];
+        }
+      }
+
       // For unmatched, search Outlook and RingCentral
       if (matchStatus === 'unmatched' && parsed.contactPhone) {
         const [outlookMatch, rcMatch] = await Promise.all([
@@ -84,6 +95,7 @@ export default async function handler(req, res) {
         logStatus: 'pending',
         contactSuggestions,
         ghlPossibleMatches,
+        cnamResult,
         tasks: parsed.tasks.map((t, i) => ({
           ...t,
           id: `${email.id}-task-${i}`,
