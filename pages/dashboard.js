@@ -513,18 +513,20 @@ export default function Dashboard() {
   }
 
   const counts = {
-    all: records.length,
+    all: records.filter(r => r.logStatus !== 'ignored').length,
     pending: records.filter(r => r.logStatus === 'pending').length,
-    unmatched: records.filter(r => r.matchStatus === 'unmatched').length,
+    unmatched: records.filter(r => r.matchStatus === 'unmatched' && r.logStatus !== 'ignored').length,
     logged: records.filter(r => r.logStatus === 'logged').length,
     ignored: records.filter(r => r.logStatus === 'ignored').length,
   };
 
   const filtered = records.filter(r => {
+    if (filter === 'ignored') return r.logStatus === 'ignored';
+    // Hide ignored records from every other view
+    if (r.logStatus === 'ignored') return false;
     if (filter === 'pending') return r.logStatus === 'pending';
     if (filter === 'unmatched') return r.matchStatus === 'unmatched';
     if (filter === 'logged') return r.logStatus === 'logged';
-    if (filter === 'ignored') return r.logStatus === 'ignored';
     return true;
   });
 
